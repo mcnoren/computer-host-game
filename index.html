@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Serverless Party Game</title>
+    <title>Serverless Party Pack</title>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     
@@ -14,387 +14,476 @@
             --text-color: #ffffff;
             --danger-color: #ff2e63;
             --success-color: #00b894;
+            --pong-bg: #000000;
         }
 
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background-color: var(--bg-color);
             color: var(--text-color);
-            margin: 0;
-            padding: 0;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            min-height: 100vh;
-            text-align: center;
-            overflow: hidden;
+            margin: 0; padding: 0;
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            min-height: 100vh; text-align: center;
+            overflow: hidden; touch-action: none; /* Prevent scroll on mobile */
         }
-
-        h1, h2, h3 { margin: 0.5em 0; }
 
         .screen {
-            display: none; /* Hidden by default */
-            width: 90%;
-            max-width: 600px;
+            display: none; width: 95%; max-width: 800px;
+            flex-direction: column; align-items: center;
             animation: fadeIn 0.5s ease;
         }
-
-        .active { display: flex; flex-direction: column; align-items: center; }
+        .active { display: flex; }
 
         button {
-            background-color: var(--accent-color);
-            color: white;
-            border: none;
-            padding: 15px 30px;
-            font-size: 1.2rem;
-            border-radius: 50px;
-            cursor: pointer;
-            margin: 10px;
-            transition: transform 0.1s, background-color 0.2s;
-            width: 80%;
-            max-width: 300px;
-            font-weight: bold;
+            background-color: var(--accent-color); color: white;
+            border: none; padding: 15px 30px; font-size: 1.2rem;
+            border-radius: 50px; cursor: pointer; margin: 10px;
+            width: 80%; max-width: 300px; font-weight: bold;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            user-select: none; -webkit-user-select: none;
         }
-
         button:active { transform: scale(0.95); }
         button:disabled { background-color: #555; cursor: not-allowed; }
 
         input {
-            padding: 15px;
-            font-size: 1.1rem;
-            border-radius: 10px;
-            border: 2px solid var(--accent-color);
-            background: rgba(255,255,255,0.1);
-            color: white;
-            margin: 10px 0;
-            width: 80%;
-            text-align: center;
+            padding: 15px; font-size: 1.1rem; border-radius: 10px;
+            border: 2px solid var(--accent-color); background: rgba(255,255,255,0.1);
+            color: white; margin: 10px 0; width: 80%; text-align: center;
         }
 
-        /* Host Specific Styles */
-        #qrcode {
-            background: white;
-            padding: 15px;
-            border-radius: 10px;
-            margin: 20px 0;
-        }
-
-        .player-list {
-            display: flex;
-            flex-wrap: wrap;
-            justify-content: center;
-            gap: 10px;
-            margin-top: 20px;
-        }
-
+        /* --- HOST STYLES --- */
+        #qrcode { background: white; padding: 15px; border-radius: 10px; margin: 20px 0; }
+        .player-list { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin: 20px 0; }
         .player-chip {
-            background: rgba(255,255,255,0.1);
-            padding: 8px 16px;
-            border-radius: 20px;
-            border: 1px solid var(--accent-color);
-            animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            background: rgba(255,255,255,0.1); padding: 8px 16px;
+            border-radius: 20px; border: 1px solid var(--accent-color);
         }
 
-        /* Game Box */
-        .game-indicator {
-            width: 200px;
-            height: 200px;
-            background-color: #444;
-            border-radius: 15px;
-            margin: 20px auto;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 2rem;
-            font-weight: bold;
-            transition: background-color 0.1s;
+        /* Game Selector */
+        .game-card {
+            background: rgba(255,255,255,0.05); border: 2px solid var(--accent-color);
+            border-radius: 15px; padding: 20px; margin: 10px; width: 80%; cursor: pointer;
+            transition: 0.2s;
+        }
+        .game-card:hover { background: var(--accent-color); }
+
+        /* Reflex Game */
+        .reflex-box {
+            width: 200px; height: 200px; background-color: #444;
+            border-radius: 15px; display: flex; align-items: center;
+            justify-content: center; font-size: 2rem; margin: 20px;
         }
 
-        .giant-btn {
-            height: 200px;
-            width: 200px;
-            border-radius: 50%;
-            background-color: var(--danger-color);
-            font-size: 2rem;
-            border: 5px solid rgba(255,255,255,0.2);
+        /* Pong Game */
+        canvas {
+            background: var(--pong-bg); border: 4px solid #fff;
+            box-shadow: 0 0 20px rgba(255,255,255,0.2);
+            max-width: 100%;
         }
 
-        /* Animations */
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
-        @keyframes popIn { from { transform: scale(0); } to { transform: scale(1); } }
+        /* --- PLAYER CONTROLLER STYLES --- */
+        .control-pad {
+            display: flex; flex-direction: column; height: 60vh; width: 100%;
+            justify-content: space-around;
+        }
+        .btn-control {
+            height: 40%; width: 80%; align-self: center;
+            font-size: 2rem; border-radius: 20px;
+            background: rgba(255,255,255,0.15); border: 2px solid white;
+        }
+        .btn-control:active { background: white; color: black; }
 
-        .hidden { display: none !important; }
-        .text-sub { opacity: 0.7; font-size: 0.9rem; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
     </style>
 </head>
 <body>
 
     <div id="screen-menu" class="screen active">
-        <h1>REFLEX PARTY</h1>
-        <p>A serverless browser party game</p>
+        <h1>PARTY PACK</h1>
+        <button onclick="app.hostInit()">HOST GAME</button>
+        <div style="opacity:0.6; margin-top:5px;">(TV / Laptop)</div>
         <br>
-        <button onclick="app.hostGame()">HOST GAME</button>
-        <div class="text-sub">For the TV / Big Screen</div>
-        <br>
-        <button onclick="app.joinGameMenu()">JOIN GAME</button>
-        <div class="text-sub">For Phones / Controllers</div>
+        <button onclick="app.joinMenu()">JOIN GAME</button>
+        <div style="opacity:0.6; margin-top:5px;">(Phone)</div>
     </div>
 
     <div id="screen-host-lobby" class="screen">
-        <h2>Join the Game!</h2>
+        <h2>Lobby Open</h2>
         <div id="qrcode"></div>
-        <p>Go to this URL on your phone or enter code:</p>
-        <h1 id="host-room-id" style="font-family: monospace; font-size: 2.5rem; color: var(--success-color); letter-spacing: 5px;">...</h1>
+        <h1 id="host-room-id" style="font-family: monospace; font-size: 2.5rem; letter-spacing: 5px; color: var(--success-color);">...</h1>
         <div class="player-list" id="host-player-list"></div>
-        <br>
-        <button id="btn-start-game" onclick="app.hostStartGame()" disabled>Waiting for players...</button>
+        <p id="lobby-msg">Waiting for players...</p>
+        
+        <div id="game-selector" style="display:none; width: 100%; display:flex; flex-direction:column; align-items:center;">
+            <h3>Choose a Game:</h3>
+            <div class="game-card" onclick="app.startGame('REFLEX')">
+                <h3>⚡ Reflex Test</h3>
+                <small>Fastest finger wins</small>
+            </div>
+            <div class="game-card" onclick="app.startGame('PONG')">
+                <h3>🏓 Pong</h3>
+                <small>2 Players Required</small>
+            </div>
+        </div>
     </div>
 
-    <div id="screen-host-game" class="screen">
-        <h2 id="host-status">Get Ready...</h2>
-        <div id="host-indicator" class="game-indicator">?</div>
-        <button onclick="app.hostResetRound()">Next Round</button>
+    <div id="screen-host-reflex" class="screen">
+        <h2 id="reflex-status">Get Ready...</h2>
+        <div id="reflex-indicator" class="reflex-box">?</div>
+        <button onclick="reflexGame.runRound()">Next Round</button>
+        <button onclick="app.returnToLobby()" style="background:#555; font-size:1rem;">End Game</button>
+    </div>
+
+    <div id="screen-host-pong" class="screen">
+        <div style="display:flex; justify-content:space-between; width:100%; max-width:600px; margin-bottom:10px;">
+            <span id="score-p1" style="font-size:2rem; font-weight:bold;">0</span>
+            <span id="score-p2" style="font-size:2rem; font-weight:bold;">0</span>
+        </div>
+        <canvas id="pongCanvas" width="600" height="400"></canvas>
+        <div style="margin-top:10px;">
+            <span style="color:var(--accent-color)">Player 1 (Left)</span> vs 
+            <span style="color:var(--danger-color)">Player 2 (Right)</span>
+        </div>
+        <button onclick="app.returnToLobby()" style="margin-top:20px; background:#555;">End Game</button>
     </div>
 
     <div id="screen-player-join" class="screen">
         <h2>Join Room</h2>
-        <input type="text" id="join-id" placeholder="Room Code (e.g. A1B2)">
-        <input type="text" id="join-name" placeholder="Your Nickname" maxlength="10">
+        <input type="text" id="join-id" placeholder="Room Code">
+        <input type="text" id="join-name" placeholder="Nickname" maxlength="8">
         <button onclick="app.joinGame()">CONNECT</button>
-        <p id="join-status" class="text-sub"></p>
+        <p id="join-status"></p>
     </div>
 
-    <div id="screen-player-game" class="screen">
-        <h2 id="player-status">Waiting for Host...</h2>
-        <button id="btn-buzz" class="giant-btn" ontouchstart="app.playerBuzz()" onclick="app.playerBuzz()">TAP!</button>
+    <div id="screen-player-wait" class="screen">
+        <h2>Connected!</h2>
+        <p>Look at the TV.</p>
+        <div class="reflex-box" style="width:100px; height:100px; margin: 0 auto;">👀</div>
+    </div>
+
+    <div id="screen-player-reflex" class="screen">
+        <h2 id="p-reflex-status">Wait...</h2>
+        <button id="btn-buzz" style="width:200px; height:200px; border-radius:50%; font-size:2rem;" 
+                ontouchstart="app.sendReflexBuzz()" onclick="app.sendReflexBuzz()">TAP!</button>
+    </div>
+
+    <div id="screen-player-pong" class="screen">
+        <h2>Pong Controller</h2>
+        <p id="pong-role" style="color: yellow;"></p>
+        <div class="control-pad">
+            <button class="btn-control" 
+                ontouchstart="app.sendPongMove(-1); event.preventDefault()" 
+                ontouchend="app.sendPongMove(0); event.preventDefault()"
+                onmousedown="app.sendPongMove(-1)" 
+                onmouseup="app.sendPongMove(0)">⬆️ UP</button>
+            
+            <button class="btn-control" 
+                ontouchstart="app.sendPongMove(1); event.preventDefault()" 
+                ontouchend="app.sendPongMove(0); event.preventDefault()"
+                onmousedown="app.sendPongMove(1)" 
+                onmouseup="app.sendPongMove(0)">⬇️ DOWN</button>
+        </div>
     </div>
 
     <script>
-        // === GAME LOGIC AND STATE ===
+        // === CORE APP LOGIC ===
         const app = {
-            peer: null,
-            conn: null, // For player
-            connections: [], // For host
-            isHost: false,
-            myId: null,
-            players: {},
-            gameState: 'LOBBY', // LOBBY, WAITING, GO, ENDED
+            peer: null, conn: null, connections: [], 
+            isHost: false, players: [],
+            activeGame: null,
 
-            // UI Helpers
-            showScreen: (id) => {
+            // --- NAVIGATION ---
+            show: (id) => {
                 document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
                 document.getElementById(id).classList.add('active');
             },
 
-            generateShortId: () => {
-                // Generate a random 4 character string
-                return Math.random().toString(36).substring(2, 6).toUpperCase();
-            },
-
-            // === HOST LOGIC ===
-            hostGame: () => {
+            // --- HOST SETUP ---
+            hostInit: () => {
                 app.isHost = true;
-                app.showScreen('screen-host-lobby');
-                
-                // Initialize PeerJS with a custom short ID if possible, otherwise rely on mapping
-                // Note: In a real serverless setup without a custom signaling server, 
-                // we have to use the ID PeerJS gives us, or try to request a specific one.
-                // We will try to request a short random string.
-                const requestedId = "GAME-" + app.generateShortId();
-                
-                app.peer = new Peer(requestedId);
+                app.show('screen-host-lobby');
+                const id = "PARTY-" + Math.random().toString(36).substring(2, 6).toUpperCase();
+                app.peer = new Peer(id);
 
                 app.peer.on('open', (id) => {
-                    app.myId = id;
-                    // Display friendly code (strip 'GAME-' for display if you want, but we need exact ID to connect)
-                    const displayCode = id.replace('GAME-', '');
-                    document.getElementById('host-room-id').innerText = displayCode;
-
-                    // Generate QR Code
-                    new QRCode(document.getElementById("qrcode"), {
-                        text: window.location.href.split('?')[0] + "?join=" + displayCode,
-                        width: 128,
-                        height: 128
+                    const code = id.replace('PARTY-', '');
+                    document.getElementById('host-room-id').innerText = code;
+                    new QRCode(document.getElementById("qrcode"), { 
+                        text: window.location.href.split('?')[0] + "?join=" + code,
+                        width: 128, height: 128 
                     });
-
-                    app.log("Lobby Open. ID: " + id);
                 });
 
                 app.peer.on('connection', (conn) => {
-                    conn.on('data', (data) => app.handleData(conn, data));
-                    conn.on('open', () => {
-                        // Ask player for name
-                        conn.send({ type: 'WELCOME' });
-                    });
-                    conn.on('close', () => {
-                        // Handle disconnect (optional implementation)
-                    });
                     app.connections.push(conn);
-                });
-
-                app.peer.on('error', (err) => {
-                    alert("Connection Error: " + err.type + ". Try refreshing.");
+                    conn.on('data', (data) => app.hostHandleData(conn, data));
+                    conn.on('open', () => conn.send({ type: 'WELCOME' }));
                 });
             },
 
-            hostStartGame: () => {
-                app.gameState = 'WAITING';
-                app.showScreen('screen-host-game');
-                app.broadcast({ type: 'GAME_START' });
-                app.hostRunRound();
-            },
+            startGame: (gameType) => {
+                if(gameType === 'PONG' && app.players.length < 2) {
+                    alert("Pong needs at least 2 players!");
+                    return;
+                }
+                app.activeGame = gameType;
+                app.broadcast({ type: 'GAME_START', game: gameType });
 
-            hostRunRound: () => {
-                const indicator = document.getElementById('host-indicator');
-                const status = document.getElementById('host-status');
-                
-                indicator.style.backgroundColor = '#444';
-                indicator.innerText = "...";
-                status.innerText = "Wait for Green...";
-                app.gameState = 'WAITING';
-                app.broadcast({ type: 'RESET_BUZZER' });
-
-                // Random delay between 2 and 6 seconds
-                const delay = Math.floor(Math.random() * 4000) + 2000;
-
-                setTimeout(() => {
-                    if(app.gameState !== 'WAITING') return; // Safety check
-                    app.gameState = 'GO';
-                    indicator.style.backgroundColor = '#00b894'; // Green
-                    indicator.innerText = "GO!";
-                    status.innerText = "TAP NOW!";
-                    app.broadcast({ type: 'GO' });
-                }, delay);
-            },
-
-            hostResetRound: () => {
-                app.hostRunRound();
-            },
-
-            handleData: (conn, data) => {
-                // Host handling incoming data
-                if (data.type === 'JOIN_REQUEST') {
-                    app.players[conn.peer] = {
-                        id: conn.peer,
-                        name: data.name,
-                        score: 0
-                    };
-                    
-                    // Update UI
-                    const el = document.createElement('div');
-                    el.className = 'player-chip';
-                    el.innerText = data.name;
-                    document.getElementById('host-player-list').appendChild(el);
-                    
-                    // Enable start button if players exist
-                    if (Object.keys(app.players).length > 0) {
-                        const btn = document.getElementById('btn-start-game');
-                        btn.disabled = false;
-                        btn.innerText = "START GAME";
-                        btn.style.backgroundColor = "var(--success-color)";
-                    }
-                } 
-                else if (data.type === 'BUZZ') {
-                    if (app.gameState === 'GO') {
-                        app.gameState = 'ENDED';
-                        const winner = app.players[conn.peer];
-                        
-                        document.getElementById('host-indicator').style.backgroundColor = 'var(--accent-color)';
-                        document.getElementById('host-indicator').innerText = winner.name;
-                        document.getElementById('host-status').innerText = "WINNER!";
-                        
-                        app.broadcast({ type: 'WINNER', name: winner.name });
-                    }
+                if(gameType === 'REFLEX') {
+                    app.show('screen-host-reflex');
+                    reflexGame.start();
+                } else if (gameType === 'PONG') {
+                    app.show('screen-host-pong');
+                    pongGame.start();
                 }
             },
 
-            broadcast: (data) => {
-                app.connections.forEach(c => c.send(data));
+            returnToLobby: () => {
+                app.activeGame = null;
+                app.show('screen-host-lobby');
+                app.broadcast({ type: 'LOBBY' });
+                pongGame.stop(); // Ensure loop stops
             },
 
-            // === PLAYER LOGIC ===
-            joinGameMenu: () => {
-                app.showScreen('screen-player-join');
-                // Check URL params for auto-join
-                const urlParams = new URLSearchParams(window.location.search);
-                if(urlParams.has('join')){
-                    document.getElementById('join-id').value = urlParams.get('join');
+            hostHandleData: (conn, data) => {
+                // Join Request
+                if (data.type === 'JOIN') {
+                    app.players.push({ id: conn.peer, name: data.name, conn: conn });
+                    const chip = document.createElement('div');
+                    chip.className = 'player-chip';
+                    chip.innerText = data.name;
+                    document.getElementById('host-player-list').appendChild(chip);
+                    document.getElementById('game-selector').style.display = 'flex';
+                    document.getElementById('lobby-msg').style.display = 'none';
                 }
+
+                // Route to Sub-Games
+                if (app.activeGame === 'REFLEX') reflexGame.handleInput(conn.peer, data);
+                if (app.activeGame === 'PONG') pongGame.handleInput(conn.peer, data);
+            },
+
+            broadcast: (msg) => app.connections.forEach(c => c.send(msg)),
+
+            // --- PLAYER SETUP ---
+            joinMenu: () => {
+                app.show('screen-player-join');
+                const p = new URLSearchParams(window.location.search);
+                if(p.has('join')) document.getElementById('join-id').value = p.get('join');
             },
 
             joinGame: () => {
-                const roomCode = "GAME-" + document.getElementById('join-id').value.toUpperCase().trim();
-                const name = document.getElementById('join-name').value.trim() || "Player";
-                
-                if(!roomCode) return alert("Enter Room Code");
+                const code = "PARTY-" + document.getElementById('join-id').value.toUpperCase().trim();
+                const name = document.getElementById('join-name').value.trim() || "Guest";
+                app.peer = new Peer();
 
-                document.getElementById('join-status').innerText = "Connecting...";
-                
-                app.peer = new Peer(); // Auto-generate ID for player
-
-                app.peer.on('open', (id) => {
-                    app.conn = app.peer.connect(roomCode);
-
+                app.peer.on('open', () => {
+                    app.conn = app.peer.connect(code);
                     app.conn.on('open', () => {
-                        console.log("Connected to " + roomCode);
-                        document.getElementById('join-status').innerText = "Connected! Joining...";
-                        app.conn.send({ type: 'JOIN_REQUEST', name: name });
-                        app.showScreen('screen-player-game');
+                        app.show('screen-player-wait');
+                        app.conn.send({ type: 'JOIN', name: name });
                     });
-
-                    app.conn.on('data', (data) => app.playerHandleData(data));
-                    
-                    app.conn.on('error', (err) => {
-                        alert("Connection failed. Check room code.");
-                        app.showScreen('screen-player-join');
-                    });
+                    app.conn.on('data', app.playerHandleData);
                 });
             },
 
             playerHandleData: (data) => {
-                const status = document.getElementById('player-status');
-                const btn = document.getElementById('btn-buzz');
-
                 if (data.type === 'GAME_START') {
-                    status.innerText = "Get Ready...";
-                    btn.disabled = true;
-                    btn.style.backgroundColor = "#555";
+                    if (data.game === 'REFLEX') app.show('screen-player-reflex');
+                    if (data.game === 'PONG') app.show('screen-player-pong');
                 }
-                else if (data.type === 'RESET_BUZZER') {
-                    status.innerText = "Wait for it...";
-                    btn.disabled = true;
-                    btn.style.backgroundColor = "#555";
-                    document.body.style.backgroundColor = "var(--bg-color)";
-                }
-                else if (data.type === 'GO') {
-                    status.innerText = "GO GO GO!";
-                    btn.disabled = false;
-                    btn.style.backgroundColor = "var(--danger-color)";
-                    // Haptic feedback
-                    if(navigator.vibrate) navigator.vibrate(50);
-                }
-                else if (data.type === 'WINNER') {
-                    status.innerText = "Winner: " + data.name;
-                    btn.disabled = true;
-                    if(data.name === document.getElementById('join-name').value) {
-                        document.body.style.backgroundColor = "var(--success-color)";
-                        if(navigator.vibrate) navigator.vibrate([100, 50, 100]);
-                    }
-                }
+                else if (data.type === 'LOBBY') app.show('screen-player-wait');
+                
+                // Route to Game Logic
+                else if (data.module === 'REFLEX') reflexGame.playerUpdate(data);
+                else if (data.module === 'PONG') pongGame.playerUpdate(data);
             },
 
-            playerBuzz: () => {
+            // --- PLAYER INPUTS ---
+            sendReflexBuzz: () => {
                 const btn = document.getElementById('btn-buzz');
                 if(!btn.disabled) {
                     app.conn.send({ type: 'BUZZ' });
-                    btn.disabled = true; // Prevent double tapping
-                    document.getElementById('player-status').innerText = "Buzzed!";
+                    btn.disabled = true;
+                }
+            },
+            sendPongMove: (dir) => {
+                // dir: -1 (up), 1 (down), 0 (stop)
+                app.conn.send({ type: 'MOVE', dir: dir });
+            }
+        };
+
+        // === REFLEX GAME LOGIC ===
+        const reflexGame = {
+            state: 'IDLE',
+            
+            start: () => { reflexGame.runRound(); },
+
+            runRound: () => {
+                reflexGame.state = 'WAITING';
+                app.broadcast({ module: 'REFLEX', type: 'RESET' });
+                
+                const box = document.getElementById('reflex-indicator');
+                const txt = document.getElementById('reflex-status');
+                box.style.backgroundColor = '#444';
+                box.innerText = "...";
+                txt.innerText = "Wait for Green...";
+
+                setTimeout(() => {
+                    if(app.activeGame !== 'REFLEX') return;
+                    reflexGame.state = 'GO';
+                    box.style.backgroundColor = '#00b894';
+                    box.innerText = "GO!";
+                    txt.innerText = "TAP NOW!";
+                    app.broadcast({ module: 'REFLEX', type: 'GO' });
+                }, Math.random() * 3000 + 2000);
+            },
+
+            handleInput: (peerId, data) => {
+                if (data.type === 'BUZZ' && reflexGame.state === 'GO') {
+                    reflexGame.state = 'ENDED';
+                    const winner = app.players.find(p => p.id === peerId);
+                    document.getElementById('reflex-status').innerText = "Winner: " + winner.name;
+                    document.getElementById('reflex-indicator').innerText = "👑";
+                    app.broadcast({ module: 'REFLEX', type: 'WINNER', name: winner.name });
                 }
             },
 
-            log: (msg) => {
-                console.log(msg);
+            playerUpdate: (data) => {
+                const btn = document.getElementById('btn-buzz');
+                const txt = document.getElementById('p-reflex-status');
+                if (data.type === 'RESET') {
+                    btn.disabled = true; btn.style.backgroundColor = '#555';
+                    txt.innerText = "Wait...";
+                }
+                if (data.type === 'GO') {
+                    btn.disabled = false; btn.style.backgroundColor = 'var(--danger-color)';
+                    txt.innerText = "TAP TAP TAP!";
+                    if(navigator.vibrate) navigator.vibrate(50);
+                }
+                if (data.type === 'WINNER') txt.innerText = "Winner: " + data.name;
+            }
+        };
+
+        // === PONG GAME LOGIC ===
+        const pongGame = {
+            canvas: null, ctx: null, loopId: null,
+            ball: { x: 300, y: 200, dx: 4, dy: 4, size: 10 },
+            paddles: { 
+                p1: { y: 150, score: 0, move: 0, id: null }, 
+                p2: { y: 150, score: 0, move: 0, id: null } 
+            },
+            padHeight: 80, padWidth: 10,
+
+            start: () => {
+                pongGame.canvas = document.getElementById('pongCanvas');
+                pongGame.ctx = pongGame.canvas.getContext('2d');
+                
+                // Assign players
+                pongGame.paddles.p1.id = app.players[0].id;
+                pongGame.paddles.p2.id = app.players[1].id;
+                
+                // Notify players of their roles
+                app.players[0].conn.send({ module: 'PONG', type: 'ROLE', role: 'Player 1 (Left)' });
+                app.players[1].conn.send({ module: 'PONG', type: 'ROLE', role: 'Player 2 (Right)' });
+
+                pongGame.resetBall();
+                pongGame.loop();
+            },
+
+            stop: () => { cancelAnimationFrame(pongGame.loopId); },
+
+            handleInput: (peerId, data) => {
+                if (data.type !== 'MOVE') return;
+                if (peerId === pongGame.paddles.p1.id) pongGame.paddles.p1.move = data.dir;
+                if (peerId === pongGame.paddles.p2.id) pongGame.paddles.p2.move = data.dir;
+            },
+
+            playerUpdate: (data) => {
+                if (data.type === 'ROLE') document.getElementById('pong-role').innerText = "You are " + data.role;
+            },
+
+            resetBall: () => {
+                pongGame.ball.x = 300; pongGame.ball.y = 200;
+                pongGame.ball.dx = (Math.random() > 0.5 ? 4 : -4);
+                pongGame.ball.dy = (Math.random() * 4) - 2;
+            },
+
+            update: () => {
+                const b = pongGame.ball;
+                
+                // Move Paddles
+                const speed = 6;
+                pongGame.paddles.p1.y += pongGame.paddles.p1.move * speed;
+                pongGame.paddles.p2.y += pongGame.paddles.p2.move * speed;
+
+                // Clamp Paddles
+                [pongGame.paddles.p1, pongGame.paddles.p2].forEach(p => {
+                    if (p.y < 0) p.y = 0;
+                    if (p.y > 400 - pongGame.padHeight) p.y = 400 - pongGame.padHeight;
+                });
+
+                // Move Ball
+                b.x += b.dx;
+                b.y += b.dy;
+
+                // Wall Collision (Top/Bottom)
+                if (b.y < 0 || b.y > 400) b.dy *= -1;
+
+                // Paddle Collision
+                // Left Paddle
+                if (b.x < 10 + pongGame.padWidth && b.y > pongGame.paddles.p1.y && b.y < pongGame.paddles.p1.y + pongGame.padHeight) {
+                    b.dx = Math.abs(b.dx) + 0.5; // Speed up slightly
+                }
+                // Right Paddle
+                if (b.x > 590 - pongGame.padWidth && b.y > pongGame.paddles.p2.y && b.y < pongGame.paddles.p2.y + pongGame.padHeight) {
+                    b.dx = -(Math.abs(b.dx) + 0.5);
+                }
+
+                // Scoring
+                if (b.x < 0) {
+                    pongGame.paddles.p2.score++;
+                    pongGame.resetBall();
+                    pongGame.updateScoreUI();
+                }
+                if (b.x > 600) {
+                    pongGame.paddles.p1.score++;
+                    pongGame.resetBall();
+                    pongGame.updateScoreUI();
+                }
+            },
+
+            updateScoreUI: () => {
+                document.getElementById('score-p1').innerText = pongGame.paddles.p1.score;
+                document.getElementById('score-p2').innerText = pongGame.paddles.p2.score;
+            },
+
+            draw: () => {
+                const ctx = pongGame.ctx;
+                ctx.fillStyle = 'black';
+                ctx.fillRect(0, 0, 600, 400);
+
+                // Draw Net
+                ctx.strokeStyle = '#333';
+                ctx.setLineDash([10, 15]);
+                ctx.beginPath(); ctx.moveTo(300, 0); ctx.lineTo(300, 400); ctx.stroke();
+
+                // Draw Ball
+                ctx.fillStyle = 'white';
+                ctx.fillRect(pongGame.ball.x - 5, pongGame.ball.y - 5, 10, 10);
+
+                // Draw Paddles
+                ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--accent-color');
+                ctx.fillRect(10, pongGame.paddles.p1.y, pongGame.padWidth, pongGame.padHeight);
+                
+                ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--danger-color');
+                ctx.fillRect(580, pongGame.paddles.p2.y, pongGame.padWidth, pongGame.padHeight);
+            },
+
+            loop: () => {
+                pongGame.update();
+                pongGame.draw();
+                pongGame.loopId = requestAnimationFrame(pongGame.loop);
             }
         };
     </script>
