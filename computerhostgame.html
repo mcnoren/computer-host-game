@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Serverless Party Game</title>
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    
+    <style>
+        :root {
+            --bg-color: #1a0b2e;
+            --accent-color: #764abc;
+            --text-color: #ffffff;
+            --danger-color: #ff2e63;
+            --success-color: #00b894;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            text-align: center;
+            overflow: hidden;
+        }
+
+        h1, h2, h3 { margin: 0.5em 0; }
+
+        .screen {
+            display: none; /* Hidden by default */
+            width: 90%;
+            max-width: 600px;
+            animation: fadeIn 0.5s ease;
+        }
+
+        .active { display: flex; flex-direction: column; align-items: center; }
+
+        button {
+            background-color: var(--accent-color);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 1.2rem;
+            border-radius: 50px;
+            cursor: pointer;
+            margin: 10px;
+            transition: transform 0.1s, background-color 0.2s;
+            width: 80%;
+            max-width: 300px;
+            font-weight: bold;
+        }
+
+        button:active { transform: scale(0.95); }
+        button:disabled { background-color: #555; cursor: not-allowed; }
+
+        input {
+            padding: 15px;
+            font-size: 1.1rem;
+            border-radius: 10px;
+            border: 2px solid var(--accent-color);
+            background: rgba(255,255,255,0.1);
+            color: white;
+            margin: 10px 0;
+            width: 80%;
+            text-align: center;
+        }
+
+        /* Host Specific Styles */
+        #qrcode {
+            background: white;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 20px 0;
+        }
+
+        .player-list {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .player-chip {
+            background: rgba(255,255,255,0.1);
+            padding: 8px 16px;
+            border-radius: 20px;
+            border: 1px solid var(--accent-color);
+            animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        /* Game Box */
+        .game-indicator {
+            width: 200px;
+            height: 200px;
+            background-color: #444;
+            border-radius: 15px;
+            margin: 20px auto;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2rem;
+            font-weight: bold;
+            transition: background-color 0.1s;
+        }
+
+        .giant-btn {
+            height: 200px;
+            width: 200px;
+            border-radius: 50%;
+            background-color: var(--danger-color);
+            font-size: 2rem;
+            border: 5px solid rgba(255,255,255,0.2);
+        }
+
+        /* Animations */
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes popIn { from { transform: scale(0); } to { transform: scale(1); } }
+
+        .hidden { display: none !important; }
+        .text-sub { opacity: 0.7; font-size: 0.9rem; }
+    </style>
+</head>
+<body>
+
+    <div id="screen-menu" class="screen active">
+        <h1>REFLEX PARTY</h1>
+        <p>A serverless browser party game</p>
+        <br>
+        <button onclick="app.hostGame()">HOST GAME</button>
+        <div class="text-sub">For the TV / Big Screen</div>
+        <br>
+        <button onclick="app.joinGameMenu()">JOIN GAME</button>
+        <div class="text-sub">For Phones / Controllers</div>
+    </div>
+
+    <div id="screen-host-lobby" class="screen">
+        <h2>Join the Game!</h2>
+        <div id="qrcode"></div>
+        <p>Go to this URL on your phone or enter code:</p>
+        <h1 id="host-room-id" style="font-family: monospace; font-size: 2.5rem; color: var(--success-color); letter-spacing: 5px;">...</h1>
+        <div class="player-list" id="host-player-list"></div>
+        <br>
+        <button id="btn-start-game" onclick="app.hostStartGame()" disabled>Waiting for players...</button>
+    </div>
+
+    <div id="screen-host-game" class="screen">
+        <h2 id="host-status">Get Ready...</h2>
+        <div id="host-indicator" class="game-indicator">?</div>
+        <button onclick="app.hostResetRound()">Next Round</button>
+    </div>
+
+    <div id="screen-player-join" class="screen">
+        <h2>Join Room</h2>
+        <input type="text" id="join-id" placeholder="Room Code (e.g. A1B2)">
+        <input type="text" id="join-name" placeholder="Your Nickname" maxlength="10">
+        <button onclick="app.joinGame()">CONNECT</button>
+        <p id="join-status" class="text-sub"></p>
+    </div>
+
+    <div id="screen-player-game" class="screen">
+        <h2 id="player-status">Waiting for Host...</h2>
+        <button id="btn-buzz" class="giant-btn" ontouchstart="app.playerBuzz()" onclick="app.playerBuzz()">TAP!</button>
+    </div>
+
+    <script>
+        // === GAME LOGIC AND STATE ===
+        const app = {
+            peer: null,
+            conn: null, // For player
+            connections: [], // For host
+            isHost: false,
+            myId: null,
+            players: {},
+            gameState: 'LOBBY', // LOBBY, WAITING, GO, ENDED
+
+            // UI Helpers
+            showScreen: (id) => {
+                document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+                document.getElementById(id).classList.add('active');
+            },
+
+            generateShortId: () => {
+                // Generate a random 4 character string
+                return Math.random().toString(36).substring(2, 6).toUpperCase();
+            },
+
+            // === HOST LOGIC ===
+            hostGame: () => {
+                app.isHost = true;
+                app.showScreen('screen-host-lobby');
+                
+                // Initialize PeerJS with a custom short ID if possible, otherwise rely on mapping
+                // Note: In a real serverless setup without a custom signaling server, 
+                // we have to use the ID PeerJS gives us, or try to request a specific one.
+                // We will try to request a short random string.
+                const requestedId = "GAME-" + app.generateShortId();
+                
+                app.peer = new Peer(requestedId);
+
+                app.peer.on('open', (id) => {
+                    app.myId = id;
+                    // Display friendly code (strip 'GAME-' for display if you want, but we need exact ID to connect)
+                    const displayCode = id.replace('GAME-', '');
+                    document.getElementById('host-room-id').innerText = displayCode;
+
+                    // Generate QR Code
+                    new QRCode(document.getElementById("qrcode"), {
+                        text: window.location.href.split('?')[0] + "?join=" + displayCode,
+                        width: 128,
+                        height: 128
+                    });
+
+                    app.log("Lobby Open. ID: " + id);
+                });
+
+                app.peer.on('connection', (conn) => {
+                    conn.on('data', (data) => app.handleData(conn, data));
+                    conn.on('open', () => {
+                        // Ask player for name
+                        conn.send({ type: 'WELCOME' });
+                    });
+                    conn.on('close', () => {
+                        // Handle disconnect (optional implementation)
+                    });
+                    app.connections.push(conn);
+                });
+
+                app.peer.on('error', (err) => {
+                    alert("Connection Error: " + err.type + ". Try refreshing.");
+                });
+            },
+
+            hostStartGame: () => {
+                app.gameState = 'WAITING';
+                app.showScreen('screen-host-game');
+                app.broadcast({ type: 'GAME_START' });
+                app.hostRunRound();
+            },
+
+            hostRunRound: () => {
+                const indicator = document.getElementById('host-indicator');
+                const status = document.getElementById('host-status');
+                
+                indicator.style.backgroundColor = '#444';
+                indicator.innerText = "...";
+                status.innerText = "Wait for Green...";
+                app.gameState = 'WAITING';
+                app.broadcast({ type: 'RESET_BUZZER' });
+
+                // Random delay between 2 and 6 seconds
+                const delay = Math.floor(Math.random() * 4000) + 2000;
+
+                setTimeout(() => {
+                    if(app.gameState !== 'WAITING') return; // Safety check
+                    app.gameState = 'GO';
+                    indicator.style.backgroundColor = '#00b894'; // Green
+                    indicator.innerText = "GO!";
+                    status.innerText = "TAP NOW!";
+                    app.broadcast({ type: 'GO' });
+                }, delay);
+            },
+
+            hostResetRound: () => {
+                app.hostRunRound();
+            },
+
+            handleData: (conn, data) => {
+                // Host handling incoming data
+                if (data.type === 'JOIN_REQUEST') {
+                    app.players[conn.peer] = {
+                        id: conn.peer,
+                        name: data.name,
+                        score: 0
+                    };
+                    
+                    // Update UI
+                    const el = document.createElement('div');
+                    el.className = 'player-chip';
+                    el.innerText = data.name;
+                    document.getElementById('host-player-list').appendChild(el);
+                    
+                    // Enable start button if players exist
+                    if (Object.keys(app.players).length > 0) {
+                        const btn = document.getElementById('btn-start-game');
+                        btn.disabled = false;
+                        btn.innerText = "START GAME";
+                        btn.style.backgroundColor = "var(--success-color)";
+                    }
+                } 
+                else if (data.type === 'BUZZ') {
+                    if (app.gameState === 'GO') {
+                        app.gameState = 'ENDED';
+                        const winner = app.players[conn.peer];
+                        
+                        document.getElementById('host-indicator').style.backgroundColor = 'var(--accent-color)';
+                        document.getElementById('host-indicator').innerText = winner.name;
+                        document.getElementById('host-status').innerText = "WINNER!";
+                        
+                        app.broadcast({ type: 'WINNER', name: winner.name });
+                    }
+                }
+            },
+
+            broadcast: (data) => {
+                app.connections.forEach(c => c.send(data));
+            },
+
+            // === PLAYER LOGIC ===
+            joinGameMenu: () => {
+                app.showScreen('screen-player-join');
+                // Check URL params for auto-join
+                const urlParams = new URLSearchParams(window.location.search);
+                if(urlParams.has('join')){
+                    document.getElementById('join-id').value = urlParams.get('join');
+                }
+            },
+
+            joinGame: () => {
+                const roomCode = "GAME-" + document.getElementById('join-id').value.toUpperCase().trim();
+                const name = document.getElementById('join-name').value.trim() || "Player";
+                
+                if(!roomCode) return alert("Enter Room Code");
+
+                document.getElementById('join-status').innerText = "Connecting...";
+                
+                app.peer = new Peer(); // Auto-generate ID for player
+
+                app.peer.on('open', (id) => {
+                    app.conn = app.peer.connect(roomCode);
+
+                    app.conn.on('open', () => {
+                        console.log("Connected to " + roomCode);
+                        document.getElementById('join-status').innerText = "Connected! Joining...";
+                        app.conn.send({ type: 'JOIN_REQUEST', name: name });
+                        app.showScreen('screen-player-game');
+                    });
+
+                    app.conn.on('data', (data) => app.playerHandleData(data));
+                    
+                    app.conn.on('error', (err) => {
+                        alert("Connection failed. Check room code.");
+                        app.showScreen('screen-player-join');
+                    });
+                });
+            },
+
+            playerHandleData: (data) => {
+                const status = document.getElementById('player-status');
+                const btn = document.getElementById('btn-buzz');
+
+                if (data.type === 'GAME_START') {
+                    status.innerText = "Get Ready...";
+                    btn.disabled = true;
+                    btn.style.backgroundColor = "#555";
+                }
+                else if (data.type === 'RESET_BUZZER') {
+                    status.innerText = "Wait for it...";
+                    btn.disabled = true;
+                    btn.style.backgroundColor = "#555";
+                    document.body.style.backgroundColor = "var(--bg-color)";
+                }
+                else if (data.type === 'GO') {
+                    status.innerText = "GO GO GO!";
+                    btn.disabled = false;
+                    btn.style.backgroundColor = "var(--danger-color)";
+                    // Haptic feedback
+                    if(navigator.vibrate) navigator.vibrate(50);
+                }
+                else if (data.type === 'WINNER') {
+                    status.innerText = "Winner: " + data.name;
+                    btn.disabled = true;
+                    if(data.name === document.getElementById('join-name').value) {
+                        document.body.style.backgroundColor = "var(--success-color)";
+                        if(navigator.vibrate) navigator.vibrate([100, 50, 100]);
+                    }
+                }
+            },
+
+            playerBuzz: () => {
+                const btn = document.getElementById('btn-buzz');
+                if(!btn.disabled) {
+                    app.conn.send({ type: 'BUZZ' });
+                    btn.disabled = true; // Prevent double tapping
+                    document.getElementById('player-status').innerText = "Buzzed!";
+                }
+            },
+
+            log: (msg) => {
+                console.log(msg);
+            }
+        };
+    </script>
+</body>
+</html>
